@@ -216,3 +216,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Quantum Espresso/Wannier90
+**/*.wfc*
+**/*.mix*
+**/*.igk*
+**/*.mmn
+**/*.amn
+**/*.chk
+**/*.eig
+**/*.nnkp
+**/*.u_matrix
+**/*.out
+**/*.wout
