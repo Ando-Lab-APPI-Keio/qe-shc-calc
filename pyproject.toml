@@ -1,0 +1,9 @@
+[project]
+name = "qe-shc-calc"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "ipython>=9.13.0",
+    "jupyter>=1.1.1",
+    "wannierberri>=26.4.6",
+]
