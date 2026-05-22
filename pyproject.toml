@@ -3,7 +3,13 @@ name = "qe-shc-calc"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "cif2cell>=2.1.0",
+    "fortio>=0.4",
     "ipython>=9.13.0",
     "jupyter>=1.1.1",
+    "matplotlib>=3.10.9",
+    "numba>=0.65.1",
+    "pyfftw>=0.15.1",
+    "ray>=2.55.1",
     "wannierberri>=26.4.6",
 ]

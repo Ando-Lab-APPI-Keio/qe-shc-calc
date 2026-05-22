@@ -4,7 +4,7 @@ This project evaluates the intrinsic Spin Hall Conductivity (SHC) of a target ma
 
 ## 1. Computational Environment
 - **OS**: Windows 11 (WSL2 Ubuntu)
-- **Quantum ESPRESSO**: v7.4.1 (`pw.x`, `pw2wan.x`)
+- **Quantum ESPRESSO**: v7.4.1 (`pw.x`, `pw2wannier90.x`)
 - **Wannier90**: v3.1.0 (`wannier90.x`, `postw90.x`)
 - **WannierBerri**: Python 3.x (`pip install wannierberri`)
 
@@ -29,8 +29,12 @@ cd q-e
 git checkout qe-7.4.1
 # Configure the environment
 ./configure
-# Compile PW, Post-Processing, Quantum Transport, and Wannier90
-make pw pp pwcond w90
+
+# 1. Download and fetch the Wannier90 source code first to ensure its directory structure exists
+make w90
+
+# 2. Compile PW, Post-Processing and Quantum Transport utilities
+make pw pp pwcond
 
 cd ../
 ```
@@ -57,6 +61,7 @@ uv sync
 ├── .gitignore          # Globally ignores large binary data and tmp directories
 ├── .venv/              # Isolated virtual environment shared by all folders
 │
+├── run_shc.py          # SHC calculation script (shared; run as: python run_shc.py Pt)
 ├── 00_plots/           # Centralized folder for data visualization & comparison
 │   └── compare_shc.py  # Python script to overlay and compare SHC spectra
 │
@@ -69,8 +74,9 @@ uv sync
     │   ├── 03_wannier/ # Wannierization (Wannier90 master file and pw2wan)
     │   │   ├── Pt.win
     │   │   └── pw2wan.in
-    │   └── 04_shc/     # Spin Hall Conductivity (WannierBerri execution)
-    │       └── run_shc.py
+    │   └── 04_shc/     # Output directory (auto-created by run_shc.py)
+    │       ├── shc_Pt.dat
+    │       └── shc_Pt.png
     │
     └── [Other_Material]/ # Easily add other materials (e.g., W, Bi2Se3)
         ├── 01_scf/
@@ -101,7 +107,7 @@ mpirun -np 4 /path/to/q-e-qe-7.3/bin/pw.x < nscf.in > nscf.out
 ```
 2. Compute the overlap matrices and projections from QE:
 ```Bash
-mpirun -np 4 /path/to/q-e-qe-7.3/bin/pw2wan.x < pw2wan.in > pw2wan.out
+mpirun -np 4 /path/to/q-e-qe-7.3/bin/pw2wannier90.x < pw2wan.in > pw2wan.out
 ```
 3. Minimize the spread to obtain MLWFs:
 ```Bash
@@ -110,10 +116,16 @@ mpirun -np 4 /path/to/q-e-qe-7.3/bin/wannier90.x [Material]
 - Check [Material].wout to ensure the spreads are well-converged.
 ### Step 4: Spin Hall Conductivity Calculation (04_shc/)
 Integrate the Berry curvature over an extremely dense k-point mesh to compute the SHC ($\sigma_{ij}^k$) using WannierBerri.
-- Execution Command:
+
+Before running, set `Efermi_center` in `run_shc.py` to the actual Fermi level from `scf.out`:
 ```Bash
-python run_shc.py
+grep "Fermi energy" calc/Pt/01_scf/scf.out
 ```
+- Execution Command (from project root):
+```Bash
+python run_shc.py Pt
+```
+Output files (`shc_Pt.dat`, `shc_Pt.png`) are written to `calc/Pt/04_shc/` automatically.
 ## 5. Notes & Reminders
 - Pseudopotentials: You must use Fully-Relativistic (FR) pseudopotentials (usually containing rel in their filenames). Scalar-relativistic potentials omit SOC, which will result in an SHC of exactly zero.
 - k-point Convergence: Intrinsic SHC calculations require very dense k-point sampling due to the sharp features of the Berry curvature. Final production runs may require a mesh as dense as 100x100x100 or finer.
