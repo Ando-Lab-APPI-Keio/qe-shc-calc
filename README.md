@@ -104,7 +104,7 @@ uv sync
 Fetches the experimental crystal structure from the AFLOW/ICSD database via the Aflux API, converts it to QE format with `cif2cell`, downloads the required fully-relativistic pseudopotentials, and writes all input files.
 
 ```bash
-python setup_material.py Pt
+uv run setup_material.py Pt
 ```
 
 Generated files:
@@ -130,13 +130,13 @@ Reads the Fermi energy from `scf.out` and the highest band energy from `nscf.out
 
 ```bash
 # After SCF — sets dis_froz_max = E_Fermi + 2.0 eV
-python update_win.py Pt
+uv run update_win.py Pt
 
 # After NSCF — also sets dis_win_max = E_band_max - 2.0 eV
-python update_win.py Pt
+uv run update_win.py Pt
 
 # Custom offsets
-python update_win.py Pt --froz-offset 3.0 --win-margin 1.0
+uv run update_win.py Pt --froz-offset 3.0 --win-margin 1.0
 ```
 
 ### `run_pipeline.py`
@@ -144,7 +144,7 @@ python update_win.py Pt --froz-offset 3.0 --win-margin 1.0
 Runs the full workflow end-to-end in the correct order.
 
 ```bash
-python run_pipeline.py Pt
+uv run run_pipeline.py Pt
 ```
 
 | Step | Action |
@@ -165,7 +165,7 @@ Each step writes a log file to the relevant calculation directory. On failure th
 Computes the SHC by integrating the Berry curvature over a dense k-mesh using WannierBerri. Run after `run_pipeline.py` has completed successfully.
 
 ```bash
-python run_shc.py Pt
+uv run run_shc.py Pt
 ```
 
 Output is written to `calc/Pt/05_shc/`.
@@ -175,7 +175,7 @@ Output is written to `calc/Pt/05_shc/`.
 Plots the band structure from `bands.dat.gnu` produced by `bands.x`. Called automatically by `run_pipeline.py`; can also be run standalone.
 
 ```bash
-python plot_bands.py Pt
+uv run plot_bands.py Pt
 ```
 
 Output: `calc/Pt/04_bands/bands_Pt.png`
@@ -188,7 +188,7 @@ If you prefer to run each step by hand instead of using `run_pipeline.py`:
 
 ```bash
 # 1. Generate input files
-python setup_material.py Pt
+uv run setup_material.py Pt
 
 # 2. SCF
 cd calc/Pt/01_scf && mkdir -p tmp
@@ -196,7 +196,7 @@ mpirun -np 4 ../../../q-e/bin/pw.x < scf.in > scf.out
 cd ../../..
 
 # 3. Update energy windows from SCF Fermi energy
-python update_win.py Pt
+uv run update_win.py Pt
 
 # 4. NSCF
 cd calc/Pt/02_nscf
@@ -204,7 +204,7 @@ mpirun -np 4 ../../../q-e/bin/pw.x < nscf.in > nscf.out
 cd ../../..
 
 # 5. Refine energy windows from NSCF band energies
-python update_win.py Pt
+uv run update_win.py Pt
 
 # 6. Wannier90 preprocessing
 cd calc/Pt/03_wannier
@@ -225,7 +225,7 @@ cd ../../..
 python plot_bands.py Pt
 
 # 10. SHC
-python run_shc.py Pt
+uv run run_shc.py Pt
 ```
 
 ---
@@ -233,9 +233,9 @@ python run_shc.py Pt
 ## 6. Adding a New Material
 
 ```bash
-python setup_material.py GaAs
-python run_pipeline.py GaAs
-python run_shc.py GaAs
+uv run setup_material.py GaAs
+uv run run_pipeline.py GaAs
+uv run run_shc.py GaAs
 ```
 
 Supported elements with built-in pseudopotential metadata: Pt, W, Au, Pd, Ir, Ga, As, Bi, Se, Fe, Co, Ni, Mo, Ta, Hf.
@@ -249,7 +249,7 @@ For other elements, `setup_material.py` constructs a pseudopotential filename au
 
 **Energy windows**: `dis_froz_max` and `dis_win_max` are set automatically by `update_win.py`. If Wannier90 reports convergence issues, adjust the offsets:
 ```bash
-python update_win.py Pt --froz-offset 3.0 --win-margin 1.0
+uv run update_win.py Pt --froz-offset 3.0 --win-margin 1.0
 ```
 Then re-run from Step 5 (Wannier90 -pp).
 
