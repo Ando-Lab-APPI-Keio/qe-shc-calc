@@ -5,7 +5,7 @@ run_shc.py  --  Spin Hall Conductivity (SHC) calculation
 Usage:
     python run_shc.py Pt
 
-Output (written to calc/Pt/04_shc/):
+Output (written to calc/Pt/05_shc/):
     shc_Pt.dat   -- Energy[eV] vs SHC[(hbar/e)(Ohm*cm)^-1]
     shc_Pt.png   -- SHC spectrum plot
 
@@ -30,7 +30,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import wannierberri as wberri
-import ray
 
 
 # ------------------------------------------------------------------
@@ -41,13 +40,51 @@ import ray
 WBERRI_TO_HBAR_E_SCMINV = 1.0 / 100.0   # S/m  ->  (hbar/e)(Omega cm)^-1
 
 
+def _make_parallel():
+    """
+    Build a WannierBerri Parallel object, trying several API styles
+    to stay compatible across versions.
+
+    WannierBerri API history:
+      v0.13-v0.14 : wberri.Parallel(method="ray")         (class at top level)
+      v0.15-v25   : wberri.parallel.Parallel(method="ray") (class in submodule)
+      v26+        : wberri.parallel.Serial()               (ray integration changed)
+                    or wberri.parallel.Parallel(method="serial")
+    """
+    # Try 1: submodule class with ray (v0.15-v25)
+    try:
+        return wberri.parallel.Parallel(method="ray")
+    except Exception:
+        pass
+
+    # Try 2: top-level class with ray (v0.13-v0.14)
+    try:
+        return wberri.Parallel(method="ray")
+    except Exception:
+        pass
+
+    # Try 3: submodule Serial (v26+)
+    try:
+        return wberri.parallel.Serial()
+    except Exception:
+        pass
+
+    # Try 4: submodule Parallel with serial method (v26+)
+    try:
+        return wberri.parallel.Parallel(method="serial")
+    except Exception:
+        pass
+
+    # Fallback: no parallelization argument (let wberri use its default)
+    print("  WARNING: Could not initialize WannierBerri Parallel; "
+          "running without explicit parallelization.", flush=True)
+    return None
+
+
 def read_fermi_energy(scf_out_path: str) -> float:
     """
     Parse the Fermi energy from a Quantum ESPRESSO scf.out file.
-    Looks for lines like:
-        the Fermi energy is    16.9986 ev
     Returns the last matching value (eV).
-    Raises FileNotFoundError or RuntimeError if not found.
     """
     if not os.path.exists(scf_out_path):
         raise FileNotFoundError(f"scf.out not found: {scf_out_path}")
@@ -61,7 +98,7 @@ def read_fermi_energy(scf_out_path: str) -> float:
         for line in f:
             m = pattern.search(line)
             if m:
-                efermi = float(m.group(1))   # keep last occurrence
+                efermi = float(m.group(1))
 
     if efermi is None:
         raise RuntimeError(
@@ -84,7 +121,7 @@ def main():
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     SCF_DIR  = os.path.join(ROOT_DIR, "calc", FORMULA, "01_scf")
     WAN_DIR  = os.path.join(ROOT_DIR, "calc", FORMULA, "03_wannier")
-    OUT_DIR  = os.path.join(ROOT_DIR, "calc", FORMULA, "04_shc")
+    OUT_DIR  = os.path.join(ROOT_DIR, "calc", FORMULA, "05_shc")
     os.makedirs(OUT_DIR, exist_ok=True)
 
     # Required files for SHCqiao
@@ -138,10 +175,8 @@ def main():
     # ---------------------------------------------
     # 4. k-point grid
     #    NK=100 is recommended for production; NK=50 for testing.
-    #    Berry curvature has sharp features near avoided crossings
-    #    that require dense k-sampling to resolve correctly.
     # ---------------------------------------------
-    NK    = 100   # increase to 150-200 for publication-quality results
+    NK    = 100
     NKFFT = 10
     print(f"Setting up k-grid: NK={NK}, NKFFT={NKFFT} ...", flush=True)
     grid = wberri.Grid(system, NK=NK, NKFFT=NKFFT)
@@ -172,27 +207,28 @@ def main():
 
     # ---------------------------------------------
     # 7. Run BZ integration
+    #    Parallel backend is resolved automatically across WannierBerri versions.
     # ---------------------------------------------
-    if not ray.is_initialized():
-    ray.init(num_cpus=multiprocessing.cpu_count())
-    print(f"Ray initialized: {multiprocessing.cpu_count()} CPUs", flush=True)
+    parallel = _make_parallel()
+    print(f"  Parallel backend: {parallel}", flush=True)
 
     print(f"Integrating SHC over {NK}^3 k-points ...", flush=True)
-    result = wberri.run(
-        system,
+
+    run_kwargs = dict(
+        system        = system,
         grid          = grid,
         calculators   = {"SHC": shc_calculator},
         adpt_num_iter = 0,
         fout_name     = os.path.join(OUT_DIR, "wberri"),
         restart       = False,
-        parallel      = wberri.Parallel(method="ray"),
     )
+    if parallel is not None:
+        run_kwargs["parallel"] = parallel
+
+    result = wberri.run(**run_kwargs)
 
     # ---------------------------------------------
     # 8. Extract results and apply unit conversion
-    #    WannierBerri result is in SI: S/m
-    #    Convert to (hbar/e)(Omega*cm)^-1 by dividing by 100
-    #
     #    Tensor axes: (energy, spin, current, field)
     #    sigma_{xy}^{z}: spin=z(2), current=x(0), field=y(1)
     # ---------------------------------------------
@@ -204,15 +240,14 @@ def main():
     field_ax   = 1   # y
     shc_si = shc_data_full[:, spin_ax, current_ax, field_ax].real   # [S/m]
 
-    # Unit conversion: S/m -> (hbar/e)(Omega*cm)^-1
     shc_data = shc_si * WBERRI_TO_HBAR_E_SCMINV   # [(hbar/e)(Omega*cm)^-1]
 
     ef_idx = Efermi_npts // 2
     print(f"Integration done. Raw tensor shape: {shc_data_full.shape}", flush=True)
     print(f"  SHC at E_F = {Efermi_center:.4f} eV:", flush=True)
-    print(f"    Raw (S/m)                  : {shc_si[ef_idx]:.2f}", flush=True)
+    print(f"    Raw (S/m)                   : {shc_si[ef_idx]:.2f}", flush=True)
     print(f"    Converted [(hbar/e)(Ocm)^-1]: {shc_data[ef_idx]:.2f}", flush=True)
-    print(f"    (Expected for Pt ~ +2000)  ", flush=True)
+    print(f"    (Expected for Pt ~ +2000)   ", flush=True)
 
     # ---------------------------------------------
     # 9. Save data
@@ -256,7 +291,6 @@ def main():
     fig.tight_layout()
     fig.savefig(OUT_PNG, dpi=150)
     print(f"Plot saved: {OUT_PNG}", flush=True)
-    ray.shutdown()
     print("\nDone!", flush=True)
     print(f"  Data : {OUT_DAT}")
     print(f"  Plot : {OUT_PNG}")
