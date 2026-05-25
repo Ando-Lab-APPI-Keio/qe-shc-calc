@@ -184,7 +184,7 @@ def main():
     # ---------------------------------------------
     # 5. Fermi energy scan
     # ---------------------------------------------
-    Efermi_range = 3.0
+    Efermi_range = 10.0
     Efermi_npts  = 200
     Efermi_array = np.linspace(
         Efermi_center - Efermi_range,

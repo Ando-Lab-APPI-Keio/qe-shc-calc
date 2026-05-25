@@ -229,3 +229,4 @@ __marimo__/
 **/*.u_matrix
 **/*.out
 **/*.wout
+.dat
